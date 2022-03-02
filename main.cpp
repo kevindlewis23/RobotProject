@@ -2,6 +2,7 @@
 #include <FEHLCD.h>
 #include <FEHMotor.h>
 #include <FEHIO.h>
+#include <FEHServo.h>
 
 #define PI 3.14159
 #define DEFAULT_STOP_TIME 200
@@ -17,6 +18,10 @@
 #define RED_UPPER 1.4
 #define BLUE_LOWER 1.55
 #define BLUE_UPPER 2.1
+
+// Servo constants
+#define SERVO_MIN 800
+#define SERVO_MAX 2300
 
 // Cosntants to initialize wheels
 const double WHEEL_DIRECTIONS[NUM_WHEELS][2] = {
@@ -35,6 +40,8 @@ DigitalEncoder encoders[NUM_WHEELS] = {
     DigitalEncoder(FEHIO::P3_2),
     DigitalEncoder(FEHIO::P3_4)
 };
+
+FEHServo arm(FEHServo::Servo7);
 
 // Encode CPI
 const int COUNTS_PER_INCH = COUNTS_PER_ROTATION / (PI * WHEEL_DIAMETER);
@@ -138,8 +145,9 @@ void drive (int degrees, int time, double speed = DEFAULT_SPEED, bool stopAfter 
 
 
 // Encoder Functions -------------------------------------------------
-
-void driveDistance(int angle, double inches) {
+// Drive at a given angle in degrees for a given distance in inches
+// Optionally, give a speed from 0 to 1
+void driveDistance(int angle, double inches, double speed = DEFAULT_SPEED) {
     const double numCounts = inches * COUNTS_PER_INCH;
     int totalCounts = 0;
 
@@ -151,7 +159,7 @@ void driveDistance(int angle, double inches) {
         encoders[i].ResetCounts();
     }
     // Set the velocity
-    setVelocity(angle, DEFAULT_SPEED);
+    setVelocity(angle, speed);
     
     // Wait for counts to reach total counts
     int counts = 0;
@@ -224,20 +232,26 @@ void driveToLight() {
 
 int main(void)
 {
-    //testBot();
+   
     
+    //testBot();
+    arm.SetMin(SERVO_MIN);
+    arm.SetMax(SERVO_MAX);
+    arm.SetDegree(180);
+    // Wait for starting light
+    while (getColor() != RED_LIGHT) {
+        Sleep(5);
+    }
 
     /*
         Performance Test 1
             ***MAKE SURE ROBOT IS IN THE RIGHT STARTING POSITION***
     */
 
+   /*
    
    
-   // Wait for starting light
-   while (getColor() != RED_LIGHT) {
-       Sleep(5);
-   }
+   
    
 
     // drive to light
@@ -271,6 +285,42 @@ int main(void)
 
     // Go back down ramp
     driveDistance(180, 20.);
+
+
+    */
+
+    // Performance task 2 -------------------------------------------
+    
+    // Drive to the ramp
+    driveDistance(-50, 17);
+    turn(false, 260);
+    
+    // Drive up the ramp
+    driveDistance(0, 24, 0.6);
+
+    // Drive to the sink
+    driveDistance(-90,12);
+    
+    // Deposit tray
+    arm.SetDegree(50);
+
+    Sleep(200);
+    arm.SetDegree(180);
+
+    // Drive to the receipt
+    driveDistance(90, 23);
+
+    // Bring down the arm and drive up to the receipt
+    arm.SetDegree(30);
+    driveDistance(176, 7.4);
+    
+    // Pull receipt
+    driveDistance(-90, 6);
+
+    // Touch the burger
+    driveDistance(30, 19);
+    drive(20, 1500, .2);
+
 
     return 0;
 }   

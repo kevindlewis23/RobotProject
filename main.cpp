@@ -263,6 +263,7 @@ void goTo(double toX, double toY, double toHeading, double error = DEFAULT_ERROR
     }
 
     while (true) {
+        double startTime = TimeNow();
         
         // Check if RPS has updated in the last frame
         if (RPS.X() != lastX || RPS.Y() != lastY || RPS.Heading() != lastHeading) {
@@ -309,11 +310,12 @@ void goTo(double toX, double toY, double toHeading, double error = DEFAULT_ERROR
         ds /= NUM_WHEELS;
         
 
-        // Add it to the deque
+        // Add it to the deque (write over the first element)
         first->dtheta = dtheta;
         first->angle = lastAngle;
         first->ds = ds;
 
+        // Put the first element of the deque at the end
         last->next = first;
         first->prev = last;
         first = first->next;
@@ -346,7 +348,8 @@ void goTo(double toX, double toY, double toHeading, double error = DEFAULT_ERROR
         lastAngle = absoluteAngle - theta;
 
         // Wait a bit
-        Sleep(CLOCK);
+        double timeElapsed = TimeNow() - startTime;
+        Sleep(CLOCK - timeElapsed);
 
     }
 

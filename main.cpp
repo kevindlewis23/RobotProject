@@ -14,7 +14,7 @@
 
 // Acceptable error
 #define DEFAULT_ERROR 0.3
-#define DEFAULT_ANGLE_ERROR 1
+#define DEFAULT_ANGLE_ERROR 2
 
 // Encoder things
 #define WHEEL_DIAMETER 2.5
@@ -35,12 +35,16 @@
 // Movement update speed
 #define CLOCK .005
 
+// RPS thing
+#define QR_ANGLE 0
+
 // Cosntants to initialize wheels
-const double WHEEL_DIRECTIONS[NUM_WHEELS][2] = {
-    {-1,0},
-    {.5, .866},
-    {.5, -.866}
+
+const double WHEEL_ANGLES[NUM_WHEELS] = {
+    PI, PI/3, -PI/3
 };
+double WHEEL_DIRECTIONS[NUM_WHEELS][2];
+
 FEHMotor drivetrain[NUM_WHEELS] = {
     FEHMotor(FEHMotor::Motor0,9.0),
     FEHMotor(FEHMotor::Motor1,9.0),
@@ -66,7 +70,8 @@ double latency = 0;
 double x = 0;
 double y = 0;
 double theta = 0;
-
+// Last direction for each wheel, either 1 or negative 1, to figure out the sign of the counts 
+int lastDirection[NUM_WHEELS];
 
 // Node structure for DEQUE
 typedef struct Node {
@@ -133,13 +138,18 @@ void setVelocity(int degrees, double speed) {
  
  // Set translational and rotational velocities, given an angle in degrees (absolute ccw from x-axis), a speed, and a turn speed
  void setVelocityAndTurn(double degrees, double speed, double turnSpeed) {
-    double angle = (degrees - theta) * PI / 180;
+    double angle = (degrees - theta + QR_ANGLE) * PI / 180;
     double direction[2] = {cos(angle) * speed, sin(angle) * speed};
     for (int i = 0; i < NUM_WHEELS; i++) {
         // Get the scalar projection of the velocity onto the wheel direction
         double proj = projectOntoWheel(direction, i);
         int percent = (int)((proj + turnSpeed) * 100);
         drivetrain[i].SetPercent(percent);
+        if (percent > 0) {
+            lastDirection[i] = 1;
+        } else {
+            lastDirection[i] = -1;
+        }
     }
  }
 
@@ -225,17 +235,30 @@ void driveDistance(int angle, double inches, double speed = DEFAULT_SPEED) {
 }
 
 
-// RPS Functions --------------------------------------------------------
+// RPS Functions --------------------------------------------------------h
+
+double normalize(double num) {
+    const double CUTOFF = 30;
+    const double MIN = 0.3;
+    if (num > CUTOFF) return 1;
+    else if (num < -CUTOFF) return -1;
+    else {
+        double m = (1 - MIN) / CUTOFF;
+        return m * num + MIN;
+    }
+}
+
 
 // Go to a specific x, y, and heading using RPS and the encoders
 // Optionally, pick a maximum error (in inches) and a translational speed and turn speed to drive at
 void goTo(double toX, double toY, double toHeading, double error = DEFAULT_ERROR, double angleError = DEFAULT_ANGLE_ERROR, double speed = DEFAULT_SPEED, double turnSpeed = DEFAULT_TURN) {
     const double squaredError = error * error;
 
+    FEHFile * fptr = SD.FOpen("angles.txt", "w");
+
     // Last enocder counts
     double lastCounts[NUM_WHEELS];
-    // Last direction for each wheel, either 1 or negative 1, to figure out the sign of the counts 
-    int lastDirection[NUM_WHEELS];
+    
     // Angle moved at for the last frame, relative to heading
     double lastAngle = 0;
     
@@ -250,6 +273,9 @@ void goTo(double toX, double toY, double toHeading, double error = DEFAULT_ERROR
     double lastX = RPS.X();
     double lastY = RPS.Y();
     double lastHeading = RPS.Heading();
+    x = lastX;
+    y = lastY;
+    theta = lastHeading;
 
     
 
@@ -267,11 +293,15 @@ void goTo(double toX, double toY, double toHeading, double error = DEFAULT_ERROR
         
         // Check if RPS has updated in the last frame
         if (RPS.X() != lastX || RPS.Y() != lastY || RPS.Heading() != lastHeading) {
+
+            // LCD.Clear();
+            // LCD.Write("First if");
             // RPS has updated
             // update "last" values
             lastX = RPS.X();
             lastY = RPS.Y();
             lastHeading = RPS.Heading();
+            LCD.WriteLine(lastX);
             // If in deadzone or out of the area, break out of the loop
             if (lastX < 0) break;
 
@@ -280,13 +310,16 @@ void goTo(double toX, double toY, double toHeading, double error = DEFAULT_ERROR
             y = lastY;
             theta = lastHeading;
             Node * cur = first;
+            // LCD.Write("beginning deque update while loop");
             while (cur != nullptr) {
-                x += cur->ds * cos(theta + cur->angle);
-                y += cur->ds * sin(theta + cur->angle);
+                x += cur->ds * cos((theta + cur->angle + cur->dtheta / 2) * PI / 180);
+                y += cur->ds * sin((theta + cur->angle + cur->dtheta / 2) * PI / 180);
                 theta += cur->dtheta;
                 cur = cur->next;
             }
         }
+        
+        // LCD.Write("First if complete");
 
         // Figure out distance traveled from last sleep using encoder counts
         double dCounts[NUM_WHEELS];
@@ -301,13 +334,18 @@ void goTo(double toX, double toY, double toHeading, double error = DEFAULT_ERROR
         
         // Assume you were moving at the correct angle and find distance
         double ds = 0;
+        int num = 0;
         for (int i = 0; i < NUM_WHEELS; i++) {
             // Ignore the angular motion
             dCounts[i] -= round(totalCounts / 3.0);
             // Find the distance according to this wheel
-            ds += dCounts[i]/cos(lastAngle);
+            if (fabs(cos(WHEEL_ANGLES[i] - lastAngle * PI /180)) > 0.05) {
+                ds += fabs(dCounts[i] / COUNTS_PER_INCH/cos(WHEEL_ANGLES[i] - lastAngle * PI /180));
+                num++;
+            }
         }
-        ds /= NUM_WHEELS;
+        if (num != 0)
+            ds /= num;
         
 
         // Add it to the deque (write over the first element)
@@ -319,13 +357,13 @@ void goTo(double toX, double toY, double toHeading, double error = DEFAULT_ERROR
         last->next = first;
         first->prev = last;
         first = first->next;
-        last->next->next = nullptr;
         last = first->prev;
+        last->next = nullptr;
         first->prev = nullptr;
 
         // Update current position
-        x += ds * cos(theta + lastAngle);
-        y += ds * sin(theta + lastAngle);
+        x += ds * cos((theta + lastAngle) * PI / 180);
+        y += ds * sin((theta + lastAngle) * PI / 180);
         theta += dtheta;
 
         // Set the speed
@@ -333,14 +371,31 @@ void goTo(double toX, double toY, double toHeading, double error = DEFAULT_ERROR
         double dy = toY - y;
         double rSquared = dx * dx + dy * dy;
         double dAngle = toHeading - theta;
+        while (fabs(dAngle) > 180) {
+            if (dAngle < -180) {
+                dAngle += 360;
+            } else if (dAngle > 180) {
+                dAngle -= 360;
+            }
+        }
         // If you are close enough, then stop
-        if (rSquared < squaredError && fabs(dAngle) < angleError) break;
+        if (rSquared < squaredError && fabs(dAngle) < angleError)  {
+            LCD.WriteLine("Broken");
+            break;
+        }
 
         // Get speeds (step with tanh so that you slow down when near the desired value)
-        double v = speed * tanh(rSquared);
-        double vTurn = turnSpeed * tanh(dAngle);
+        double v = speed * normalize(rSquared);
+        
+        double vTurn = turnSpeed * normalize(dAngle);
         double absoluteAngle = atan2(dy, dx) * 180 / PI;
 
+        LCD.Clear();
+        LCD.WriteLine(dx);
+        LCD.WriteLine(dy);
+        LCD.WriteLine(rSquared);
+        LCD.WriteLine(squaredError);
+        SD.FPrintf(fptr, "dx: %f, dy: %f, dangle: %f, ds: %f, angle: %f, dtheta: %f\n",x, y, dAngle,  ds, absoluteAngle, dtheta);
         // Set the actual speed
         setVelocityAndTurn(absoluteAngle, v, vTurn);
 
@@ -349,7 +404,8 @@ void goTo(double toX, double toY, double toHeading, double error = DEFAULT_ERROR
 
         // Wait a bit
         double timeElapsed = TimeNow() - startTime;
-        Sleep(CLOCK - timeElapsed);
+        if (timeElapsed < CLOCK)
+            Sleep(CLOCK - timeElapsed);
 
     }
 
@@ -367,7 +423,6 @@ enum COLORS {
 };
 
  // gets the color of loight using the CdS cell
- // returns 1 for blue, and 2 for red, and 0 for neither
  COLORS getColor(){
      COLORS ret=NONE;
      double color = CDS.Value();
@@ -433,15 +488,19 @@ void testSpeeds() {
 
 // Initialize everything
 void initializeBot() {
+    for (int i = 0; i < NUM_WHEELS; i++) {
+        WHEEL_DIRECTIONS[i][0] = cos(WHEEL_ANGLES[i]);
+        WHEEL_DIRECTIONS[i][1] = sin(WHEEL_ANGLES[i]);
+    }
     arm.SetMin(SERVO_MIN);
     arm.SetMax(SERVO_MAX);
     arm.SetDegree(180);
     RPS.InitializeTouchMenu();
     // Find latency
-    double y = RPS.Y();
+    double curY = RPS.Y();
     setVelocity(0,0.5);
     double startTime = TimeNow();
-    while (RPS.Y() - y <= 0.3);
+    while (RPS.Y() - curY <= 0.2);
     latency = TimeNow() - startTime;
     stop();
 
@@ -449,13 +508,16 @@ void initializeBot() {
     // Initialize the Deque
     dequeSize = round(latency / CLOCK);
     first = (Node * )malloc(sizeof(Node));
+    first->next = nullptr;
     last = first;
     for (int i = 1; i < dequeSize; i++) {
         Node * newNode = (Node * )malloc(sizeof(Node));
+        
         newNode->next = first;
         first->prev = newNode;
         first = newNode;
     }
+    first->prev = nullptr;
 
 }
 
@@ -471,6 +533,8 @@ int main(void)
    
 
     initializeBot();
+
+    
     // Wait for starting light
     while (getColor() != RED_LIGHT) {
         Sleep(5);
@@ -527,6 +591,7 @@ int main(void)
     // Performance task 2 -------------------------------------------
     
     // Drive to the ramp
+    /*
     driveDistance(-50, 17);
     turn(false, 260);
     
@@ -555,6 +620,10 @@ int main(void)
     // Touch the burger
     driveDistance(30, 19);
     drive(20, 1500, .2);
-
-
+    */
+    LCD.WriteLine("started!");
+    goTo(17.0, 23.0, 0);
+    driveDistance(0, 20, 0.6);
+    goTo(26., 56.69, 180);
+    LCD.WriteLine("Done!");
 }   

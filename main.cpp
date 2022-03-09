@@ -238,7 +238,7 @@ void driveDistance(int angle, double inches, double speed = DEFAULT_SPEED) {
 // RPS Functions --------------------------------------------------------h
 
 double normalize(double num) {
-    const double CUTOFF = 30;
+    const double CUTOFF = 20;
     const double MIN = 0.3;
     if (num > CUTOFF) return 1;
     else if (num < -CUTOFF) return -1;
@@ -311,18 +311,18 @@ void goTo(double toX, double toY, double toHeading, double error = DEFAULT_ERROR
             theta = lastHeading;
             Node * cur = first;
             // LCD.Write("beginning deque update while loop");
-            while (cur != nullptr) {
+            /*while (cur != nullptr) {
                 x += cur->ds * cos((theta + cur->angle + cur->dtheta / 2) * PI / 180);
                 y += cur->ds * sin((theta + cur->angle + cur->dtheta / 2) * PI / 180);
                 theta += cur->dtheta;
                 cur = cur->next;
-            }
+            }*/
         }
         
         // LCD.Write("First if complete");
 
         // Figure out distance traveled from last sleep using encoder counts
-        double dCounts[NUM_WHEELS];
+        /*double dCounts[NUM_WHEELS];
         int totalCounts = 0;
         for (int i = 0; i < NUM_WHEELS; i++) {
             dCounts[i] = lastDirection[i] * (encoders[i].Counts() - lastCounts[i]);
@@ -365,7 +365,7 @@ void goTo(double toX, double toY, double toHeading, double error = DEFAULT_ERROR
         x += ds * cos((theta + lastAngle) * PI / 180);
         y += ds * sin((theta + lastAngle) * PI / 180);
         theta += dtheta;
-
+        */
         // Set the speed
         double dx = toX - x;
         double dy = toY - y;
@@ -395,7 +395,7 @@ void goTo(double toX, double toY, double toHeading, double error = DEFAULT_ERROR
         LCD.WriteLine(dy);
         LCD.WriteLine(rSquared);
         LCD.WriteLine(squaredError);
-        SD.FPrintf(fptr, "dx: %f, dy: %f, dangle: %f, ds: %f, angle: %f, dtheta: %f\n",x, y, dAngle,  ds, absoluteAngle, dtheta);
+        // SD.FPrintf(fptr, "dx: %f, dy: %f, dangle: %f, ds: %f, angle: %f, dtheta: %f\n",x, y, dAngle,  ds, absoluteAngle, dtheta);
         // Set the actual speed
         setVelocityAndTurn(absoluteAngle, v, vTurn);
 

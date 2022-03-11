@@ -541,10 +541,10 @@ void setRPSVals() {
 }
 
 // Set things
-const int NUM_LOCATIONS = 3;
+const int NUM_LOCATIONS = 4;
 double locations[NUM_LOCATIONS][3];
 int SERVO_LOCATIONS[NUM_LOCATIONS] = {
-    180, 0, 180
+    180, 180, 180, 180
 };
 void setLocations () {
     for (int i = 0; i < NUM_LOCATIONS; i++) {
@@ -672,7 +672,7 @@ int main(void)
     drive(20, 1500, .2);
     */
     
-    LCD.WriteLine("started!");
+    /*LCD.WriteLine("started!");
     // goTo(17.0, 23.0, 0);
     goTo(locations[0]);
     driveDistance(0, 20, 0.6);
@@ -691,5 +691,39 @@ int main(void)
     goTo(locations[2], .2, 2, .3);
     driveDistance(180, 5);
     arm.SetDegree(80);
-    LCD.WriteLine("Done!");
+    LCD.WriteLine("Done!");*/
+    goTo(locations[0]);
+    driveDistance(0, 20, 0.6);
+    goTo(locations[1], .2, 2, .3);
+    switch (RPS.GetIceCream()) {
+        case 0:
+            driveDistance(150, 7);
+            break;
+        case 1:
+            driveDistance(180, 5);
+            break;
+        case 2:
+            driveDistance(-150, 7);
+            break;
+    }
+    arm.SetDegree(80);
+
+    Sleep(7000);
+    arm.SetDegree(180);
+    driveDistance(0, 3);
+    arm.SetDegree(0);
+    Sleep(500);
+    driveDistance(180, 2.4);
+    arm.SetDegree(120);
+    Sleep(600);
+    arm.SetDegree(0);
+    Sleep(100);
+    driveDistance(0, 6);
+    arm.SetDegree(180);
+
+    goTo(locations[2]);
+    driveDistance(0, 15);
+    goTo(locations[3]);
+    drive(180, 2000);
+    
 }   

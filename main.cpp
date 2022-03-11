@@ -13,7 +13,7 @@
 #define DEFAULT_TURN 0.2
 
 // Acceptable error
-#define DEFAULT_ERROR 0.3
+#define DEFAULT_ERROR 0.4
 #define DEFAULT_ANGLE_ERROR 2
 
 // Encoder things
@@ -238,13 +238,17 @@ void driveDistance(int angle, double inches, double speed = DEFAULT_SPEED) {
 // RPS Functions --------------------------------------------------------h
 
 double normalize(double num) {
-    const double CUTOFF = 20;
-    const double MIN = 0.3;
+    if (num == 0) return 0;
+    const double CUTOFF = 25;
+    const double MIN = 0.25;
     if (num > CUTOFF) return 1;
     else if (num < -CUTOFF) return -1;
-    else {
+    else if (num > 0) {
         double m = (1 - MIN) / CUTOFF;
         return m * num + MIN;
+    } else {
+        double m = (-MIN + 1) / CUTOFF;
+        return m * num - MIN;
     }
 }
 
@@ -303,7 +307,10 @@ void goTo(double toX, double toY, double toHeading, double error = DEFAULT_ERROR
             lastHeading = RPS.Heading();
             LCD.WriteLine(lastX);
             // If in deadzone or out of the area, break out of the loop
-            if (lastX < 0) break;
+            if (lastX < 0)  {
+                stop();
+                return;
+            };
 
             // Update the current x and y by going through the deque
             x = lastX;
@@ -381,20 +388,19 @@ void goTo(double toX, double toY, double toHeading, double error = DEFAULT_ERROR
         // If you are close enough, then stop
         if (rSquared < squaredError && fabs(dAngle) < angleError)  {
             LCD.WriteLine("Broken");
-            break;
+            stop();
+            return;
         }
 
         // Get speeds (step with tanh so that you slow down when near the desired value)
         double v = speed * normalize(rSquared);
         
-        double vTurn = turnSpeed * normalize(dAngle);
+        double vTurn = turnSpeed * normalize(dAngle / 3);
         double absoluteAngle = atan2(dy, dx) * 180 / PI;
 
         LCD.Clear();
-        LCD.WriteLine(dx);
-        LCD.WriteLine(dy);
         LCD.WriteLine(rSquared);
-        LCD.WriteLine(squaredError);
+        LCD.WriteLine(dAngle);
         // SD.FPrintf(fptr, "dx: %f, dy: %f, dangle: %f, ds: %f, angle: %f, dtheta: %f\n",x, y, dAngle,  ds, absoluteAngle, dtheta);
         // Set the actual speed
         setVelocityAndTurn(absoluteAngle, v, vTurn);
@@ -411,6 +417,12 @@ void goTo(double toX, double toY, double toHeading, double error = DEFAULT_ERROR
 
     // Stop the motors
     stop();
+}
+
+
+//Go to with an array for x y and heading
+void goTo(double to[3], double error = DEFAULT_ERROR, double angleError = DEFAULT_ANGLE_ERROR, double speed = DEFAULT_SPEED, double turnSpeed = DEFAULT_TURN) {
+    goTo(to[0], to[1], to[2], error, angleError, speed, turnSpeed);
 }
 
 // CdS Functions ---------------------------------------------------------
@@ -528,14 +540,52 @@ void setRPSVals() {
     theta = RPS.Heading();
 }
 
+// Set things
+const int NUM_LOCATIONS = 3;
+double locations[NUM_LOCATIONS][3];
+int SERVO_LOCATIONS[NUM_LOCATIONS] = {
+    180, 0, 180
+};
+void setLocations () {
+    for (int i = 0; i < NUM_LOCATIONS; i++) {
+        
+        int x, y;
+        while(!LCD.Touch(&x, &y)) {
+            arm.SetDegree(SERVO_LOCATIONS[i]);
+            LCD.Clear();
+            LCD.Write("Click for location ");
+            LCD.WriteLine(i + 1);
+            LCD.WriteLine("X,Y,Heading:");
+            LCD.WriteLine(RPS.X());
+            LCD.WriteLine(RPS.Y());
+            LCD.WriteLine(RPS.Heading());
+            Sleep(20);
+        }
+        while(LCD.Touch(&x, &y));
+        locations[i][0] = RPS.X();
+        locations[i][1] = RPS.Y();
+        locations[i][2] = RPS.Heading();
+        if (locations[i][0] < 0) i--;
+    }
+    arm.SetDegree(180);
+}
+
+
 int main(void)
 {
    
 
     initializeBot();
-
+    
+    setLocations(); 
     
     // Wait for starting light
+    LCD.Clear();
+    LCD.WriteLine("Waiting for touch...");
+    int x, y;
+    while(!LCD.Touch(&x, &y));
+    while(LCD.Touch(&x, &y));
+    LCD.Clear();
     while (getColor() != RED_LIGHT) {
         Sleep(5);
     }
@@ -621,9 +671,25 @@ int main(void)
     driveDistance(30, 19);
     drive(20, 1500, .2);
     */
+    
     LCD.WriteLine("started!");
-    goTo(17.0, 23.0, 0);
+    // goTo(17.0, 23.0, 0);
+    goTo(locations[0]);
     driveDistance(0, 20, 0.6);
-    goTo(26., 56.69, 180);
+    arm.SetDegree(0);
+    // goTo(26.7, 57.7, 180);
+    goTo(locations[1]);
+    arm.SetDegree(80);
+    Sleep(500);
+    turn(true, 500);
+    turn(false, 100);
+    drive(0, 300);
+    drive(-90, 400);
+    drive(180, 300);
+    drive(90, 400);
+    arm.SetDegree(180);
+    goTo(locations[2], .2, 2, .3);
+    driveDistance(180, 5);
+    arm.SetDegree(80);
     LCD.WriteLine("Done!");
 }   

@@ -8,7 +8,7 @@
 #include <stdlib.h>
 
 #define PI 3.14159
-#define DEFAULT_STOP_TIME 200
+#define DEFAULT_STOP_TIME 100
 #define DEFAULT_SPEED 0.4
 #define DEFAULT_TURN 0.2
 
@@ -30,7 +30,7 @@
 
 // Servo constants
 #define SERVO_MIN 800
-#define SERVO_MAX 2300
+#define SERVO_MAX 2400
 
 // Movement update speed
 #define CLOCK .005
@@ -234,6 +234,40 @@ void driveDistance(int angle, double inches, double speed = DEFAULT_SPEED) {
     
 }
 
+// Turn a given angle using the encoders
+// Optionally, give a speed from 0 to 1
+void turnDegrees(int degrees, double speed = DEFAULT_SPEED) {
+    const double totalCounts = fabs(degrees * COUNTS_PER_DEGREE * NUM_WHEELS);
+    int actualSpeed = round(speed * 100);
+    if (degrees > 0) actualSpeed *= -1;
+    for (int i = 0; i < NUM_WHEELS; i++) {
+
+        // Reset each encoder
+        encoders[i].ResetCounts();
+        
+    }
+    // Set the velocity
+    for (int i = 0; i < NUM_WHEELS; i++) {
+
+        // Reset each encoder
+        drivetrain[i].SetPercent(actualSpeed);
+        
+    }
+    
+    // Wait for counts to reach total counts
+    int counts = 0;
+    while (counts < totalCounts) {
+        counts = 0;
+        for (int i = 0; i < NUM_WHEELS; i++) {
+            counts += abs((int)encoders[i].Counts());
+        }
+        Sleep(5);
+    }
+    stop();
+    
+    
+}
+
 
 // RPS Functions --------------------------------------------------------h
 
@@ -319,21 +353,21 @@ void goTo(double toX, double toY, double toHeading, double error = DEFAULT_ERROR
                 }
                 
             } else {
-
-            // Update the current x and y by going through the deque
-            x = lastX;
-            y = lastY;
-            theta = lastHeading;
-            // Node * cur = first;
-            // LCD.Write("beginning deque update while loop");
-            /*while (cur != nullptr) {
-                x += cur->ds * cos((theta + cur->angle + cur->dtheta / 2) * PI / 180);
-                y += cur->ds * sin((theta + cur->angle + cur->dtheta / 2) * PI / 180);
-                theta += cur->dtheta;
-                cur = cur->next;
-            }*/
+                errorStartTime = -1;
+                // Update the current x and y by going through the deque
+                x = lastX;
+                y = lastY;
+                theta = lastHeading;
+                // Node * cur = first;
+                // LCD.Write("beginning deque update while loop");
+                /*while (cur != nullptr) {
+                    x += cur->ds * cos((theta + cur->angle + cur->dtheta / 2) * PI / 180);
+                    y += cur->ds * sin((theta + cur->angle + cur->dtheta / 2) * PI / 180);
+                    theta += cur->dtheta;
+                    cur = cur->next;
+                }*/
+                }
             }
-        }
         
         // LCD.Write("First if complete");
 
@@ -554,7 +588,7 @@ void setRPSVals() {
 const int NUM_LOCATIONS = 4;
 double locations[NUM_LOCATIONS][3];
 int SERVO_LOCATIONS[NUM_LOCATIONS] = {
-    180, 0, 30, 180
+    180, 20, 30, 180
 };
 
 void setLocations () {
@@ -578,6 +612,7 @@ void setLocations () {
         locations[i][2] = RPS.Heading();
         if (locations[i][0] < 0) i--;
         Sleep(1000);
+        LCD.Touch(&x, &y);
     }
     arm.SetDegree(180);
 }
@@ -588,13 +623,14 @@ void challenge() {
     // Step 1: Deposit tray ----------------------------------------------
     // Drive to the ramp
     driveDistance(-50, 17);
-    turn(false, 260);
+    turnDegrees(-25);
     
     // Drive up the ramp
-    driveDistance(0, 24, 0.6);
+    driveDistance(0, 26, 0.6);
 
     // Drive to the sink
-    driveDistance(-90,12);
+    driveDistance(-90,12, .6);
+    drive(180, 400);
     
     // Deposit tray
     arm.SetDegree(50);
@@ -623,31 +659,31 @@ void challenge() {
     }
     // Flip
     arm.SetDegree(80);
-    Sleep(500);
+    Sleep(800);
     arm.SetDegree(180);
 
     // Drive away a bit
-    driveDistance(0, 6);
+    driveDistance(0, 6, .6);
 
     // Step 3: Burger flip ---------------------------------------------------
     // Go to burger
-    arm.SetDegree(0);
+    arm.SetDegree(15);
     goTo(locations[1]);
 
     // Flip it
-    arm.SetDegree(80);
+    arm.SetDegree(70);
     Sleep(500);
     turn(true, 500);
     turn(false, 100);
 
     // Bring the stove back
-    drive(0, 300);
-    drive(-90, 400);
-    drive(180, 300);
-    drive(90, 400);
+    drive(0., 300, 0.5, false);
+    drive(-90, 400, 0.5, false);
+    drive(180, 300, 0.5, false);
+    drive(90, 400, 0.5, false);
 
     // Drive away
-    driveDistance(45, 5);
+    driveDistance(45, 5, .6);
 
     // Step 4: Unflip ice cream ------------------------------------------------  
     // Go to the area  
@@ -657,47 +693,54 @@ void challenge() {
     // Read and move to the correct lever
     switch (RPS.GetIceCream()) {
         case 0:
-            driveDistance(150, 5.8);
+            driveDistance(150, 6);
             break;
         case 1:
-            driveDistance(180, 3.8);
+            driveDistance(180, 4.5);
             break;
         case 2:
-            driveDistance(-150, 5.8);
+            driveDistance(-150, 6);
             break;
     }
 
     // Flip
     arm.SetDegree(120);
     Sleep(500);
+    driveDistance(0, 2, .2);
     arm.SetDegree(0);
 
     // Drive away a bit
-    driveDistance(0, 6);
+    driveDistance(0, 4, .6);
 
     // Step 5: Slide receipt ----------------------------------------
     // Go to the receipt
     arm.SetDegree(30);
     goTo(locations[2]);
+    
     drive(180, 500);
 
+    // Hook the receipt
+    turnDegrees(15);
+
     // Pull receipt
-    driveDistance(-90, 6);
+    driveDistance(-90, 6, .6);
 
     // Step 6: Click the correct jukebox button -----------------------------------
     // Drive away from receipt
-    driveDistance(0, 2);
+    driveDistance(0, 2, .6);
     arm.SetDegree(180);
 
     // Go to ramp
-    driveDistance(-90, 6);
-    turn(true, 300);
+    driveDistance(-90, 6, .6);
     
     // Drive down the ramp
-    driveDistance(180, 20);
+    driveDistance(180, 20, .6);
+
+    // Drive towards the light
+    driveDistance(225, 6, .6);
 
     // Go to the light
-    goTo(locations[3]);
+    goTo(locations[3], DEFAULT_ERROR, 1.0);
 
     // get light value
     COLORS color=getColor();
@@ -708,17 +751,22 @@ void challenge() {
         // hit blue
         LCD.WriteLine("Blue");
         drive(160,700);
-        drive(180+160,700);
+        
     }else{
         // hit red
         LCD.WriteLine("Red");
-        drive(224,900);
-        drive(180+224,900);
-        turn(true, 100);
+        driveDistance(250,5);
+        drive(180, 400);
+        turn(true, 100, false);
+        drive(180, 50, false);
+        
     }
+    // Drive away a bit
+    driveDistance(45, 6, .6);
 
     // Step 7: press final button ---------------------------
-    setVelocity(98, 0.4);
+    goTo(21., 16., 48., .5, 3., .4);
+    setVelocity(180, DEFAULT_SPEED);
     
 }
 
@@ -742,6 +790,8 @@ int main(void)
     }
 
     setRPSVals();
+    challenge();
+
 
     /*
         Performance Test 1
@@ -882,5 +932,6 @@ int main(void)
     goTo(locations[3]);
     drive(180, 2000);
     */
-   challenge();
+   
+   
 }   

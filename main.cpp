@@ -5,6 +5,8 @@
 #include <FEHServo.h>
 #include <FEHSD.h>
 #include <FEHRPS.h>
+#include <FEHBuzzer.h>
+#include <FEHBattery.h>
 #include <stdlib.h>
 
 #define PI 3.14159
@@ -496,8 +498,10 @@ enum COLORS {
 
 // Drive in a circle
 void driveInCircle(double speed, int timePerDegree) {
+    
     for (int angle = 0; angle < 360; angle++) {
         drive(angle, timePerDegree, speed, false);
+        
     }
     stop(DEFAULT_STOP_TIME);
 }
@@ -508,7 +512,7 @@ void testBot() {
     drive(90, 2000);
     drive(270, 2000);
     drive(180, 2000, DEFAULT_SPEED, true, 2000);
-    driveInCircle(.7, 15);
+    driveInCircle(.6, 5);
     turn(true, 2000);
     turn(false, 2000);
 }
@@ -517,9 +521,6 @@ void testBot() {
 
 // Functions for performance ----------------------------------------
 
-void driveToLight() {
-    //dr)
-}
 
 
 void testSpeeds() {
@@ -617,6 +618,87 @@ void setLocations () {
     arm.SetDegree(180);
 }
 
+// We are the champions song
+const int SONG_LENGTH = 55;
+int song[][2] = {
+    {FEHBuzzer::C4, 4},
+    {FEHBuzzer::B3, 1},
+    {FEHBuzzer::C4, 1},
+    {FEHBuzzer::B3, 2},
+    {FEHBuzzer::G3, 3},
+    {FEHBuzzer::E3, 1},
+    {FEHBuzzer::A3, 2},
+    {FEHBuzzer::E3, 2},
+    {-1, 1},
+    {FEHBuzzer::E3, 1},
+    {FEHBuzzer::F3, 1},
+    {-1, 1},
+    {FEHBuzzer::F3, 1},
+    {FEHBuzzer::G3, 1},
+    {-1, 1},
+    {FEHBuzzer::G3, 1},
+    {FEHBuzzer::C4, 4},
+    {FEHBuzzer::D4, 1},
+    {FEHBuzzer::E4, 1},
+    {FEHBuzzer::G4, 2},
+    {FEHBuzzer::B3, 2},
+    {FEHBuzzer::A3, 1},
+    {FEHBuzzer::B3, 1},
+    {FEHBuzzer::A3, 2},
+    {-1, 1},
+    {FEHBuzzer::A3, 1},
+    {FEHBuzzer::Af3, 1},
+    {FEHBuzzer::G3, 1},
+    {FEHBuzzer::Gf3, 5},
+    {-1, 1},
+    {FEHBuzzer::A3, 3},
+    {FEHBuzzer::G3, 2},
+    {FEHBuzzer::A3, 1},
+    {FEHBuzzer::G3, 3},
+    {FEHBuzzer::F3, 3},
+    {FEHBuzzer::F4, 3},
+    {FEHBuzzer::E4, 2},
+    {FEHBuzzer::F4, 1},
+    {FEHBuzzer::E4, 3},
+    {FEHBuzzer::D4, 3},
+    {FEHBuzzer::E4, 3},
+    {FEHBuzzer::C4, 2},
+    {FEHBuzzer::F4, 1},
+    {FEHBuzzer::E4, 3},
+    {FEHBuzzer::C4, 2},
+    {FEHBuzzer::F4, 1},
+    {FEHBuzzer::Ef4, 3},
+    {FEHBuzzer::C4, 2},
+    {FEHBuzzer::F4, 1},
+    {FEHBuzzer::Ef4, 3},
+    {FEHBuzzer::C4, 3},
+    {-1, 4},
+    {FEHBuzzer::Bf3, 1},
+    {FEHBuzzer::G3, 1},
+    {FEHBuzzer::C4, 12}
+
+};
+
+
+// Play a song given a 2d array of ints (frequency and beats for each note), length of the array, and bpm
+void playSong(int tones[][2], int length, int bpm) {
+    // Milliseconds per beat
+    const int MILLIS_PB = 1.0 / bpm * 60 * 1000;
+    for (int i = 0; i < length; i++) {
+        // Get the time
+        int millis = tones[i][1] * MILLIS_PB;
+
+        // If frequency is -1, rest
+        if (tones[i][0] == -1) {
+            Sleep(millis);
+        } else {
+            // Otherwise, play the tone
+            Buzzer.Tone(tones[i][0], millis);
+        }
+    }
+}
+
+
 
 // Final task, do everything
 void challenge() {
@@ -630,7 +712,7 @@ void challenge() {
 
     // Drive to the sink
     driveDistance(-90,12, .6);
-    drive(180, 400);
+    drive(180, 600);
     
     // Deposit tray
     arm.SetDegree(50);
@@ -668,7 +750,7 @@ void challenge() {
     // Step 3: Burger flip ---------------------------------------------------
     // Go to burger
     arm.SetDegree(15);
-    goTo(locations[1]);
+    goTo(locations[1], .2, 1);
 
     // Flip it
     arm.SetDegree(70);
@@ -677,10 +759,10 @@ void challenge() {
     turn(false, 100);
 
     // Bring the stove back
-    drive(0., 300, 0.5, false);
-    drive(-90, 400, 0.5, false);
-    drive(180, 300, 0.5, false);
-    drive(90, 400, 0.5, false);
+    drive(0., 250, 0.5, false);
+    drive(-90, 350, 0.5, false);
+    drive(180, 250, 0.5, false);
+    drive(90, 350, 0.5, false);
 
     // Drive away
     driveDistance(45, 5, .6);
@@ -770,9 +852,127 @@ void challenge() {
     
 }
 
+
+// Do a celebration dance!!!!!!!
+void celebrationDance() {
+    int colors[] = {RED, ORANGE, YELLOW, GREEN, BLUE, INDIGO, VIOLET};
+    int j = 0;
+    LCD.SetBackgroundColor(colors[j]);
+    LCD.Clear();
+    j++;
+    j %= 7;
+    
+    for (int i = 0; i < NUM_WHEELS; i++) {
+        WHEEL_DIRECTIONS[i][0] = cos(WHEEL_ANGLES[i]);
+        WHEEL_DIRECTIONS[i][1] = sin(WHEEL_ANGLES[i]);
+    }
+    arm.SetMin(SERVO_MIN);
+    arm.SetMax(SERVO_MAX);
+    arm.SetDegree(180);
+    driveDistance(0, 3, .6);
+    LCD.SetBackgroundColor(colors[j]);
+    LCD.Clear();
+    j++;
+    j %= 7;
+    arm.SetDegree(0);
+    driveDistance(180, 3, .6);
+    LCD.SetBackgroundColor(colors[j]);
+    LCD.Clear();
+    j++;
+    j %= 7;
+    arm.SetDegree(100);
+    driveDistance(90, 1.5, .6);
+    LCD.SetBackgroundColor(colors[j]);
+    LCD.Clear();
+    j++;
+    j %= 7;
+    driveDistance(-90, 3, .6);
+    LCD.SetBackgroundColor(colors[j]);
+    LCD.Clear();
+    j++;
+    j %= 7;
+    driveDistance(90, 1.5, .6);
+    LCD.SetBackgroundColor(colors[j]);
+    LCD.Clear();
+    j++;
+    j %= 7;
+    turnDegrees(30, .6);
+    LCD.SetBackgroundColor(colors[j]);
+    LCD.Clear();
+    j++;
+    j %= 7;
+    turnDegrees(-60, .6);
+    LCD.SetBackgroundColor(colors[j]);
+    LCD.Clear();
+    j++;
+    j %= 7;
+    arm.SetDegree(180);
+    turnDegrees(340, .6);
+    LCD.SetBackgroundColor(colors[j]);
+    LCD.Clear();
+    j++;
+    j %= 7;
+    driveInCircle(.6,5);
+    LCD.SetBackgroundColor(colors[j]);
+    LCD.Clear();
+    j++;
+    j %= 7;
+    Sleep(100);
+    arm.SetDegree(0);
+    turn(true, 300);
+    LCD.SetBackgroundColor(colors[j]);
+    LCD.Clear();
+    j++;
+    j %= 7;
+    arm.SetDegree(180);
+    turn(false, 300);
+    LCD.SetBackgroundColor(colors[j]);
+    LCD.Clear();
+    j++;
+    j %= 7;
+
+    // Play the song
+    playSong(song, SONG_LENGTH, 400);
+}
+
+
+// Test to make sure everything works
+void testSensors () {
+    for (int i = 0; i < NUM_WHEELS; i++) {
+        WHEEL_DIRECTIONS[i][0] = cos(WHEEL_ANGLES[i]);
+        WHEEL_DIRECTIONS[i][1] = sin(WHEEL_ANGLES[i]);
+    }
+    LCD.WriteLine(Battery.Voltage());
+    arm.SetMin(SERVO_MIN);
+    arm.SetMax(SERVO_MAX);
+    arm.SetDegree(180);
+    Sleep(500);
+    arm.SetDegree(0);
+    Sleep(500);
+    
+    for (int i = 0; i < 200; i++) {
+        LCD.Clear();
+        LCD.WriteLine(CDS.Value());
+        Sleep(10);
+    }
+    for (int i = 0; i < NUM_WHEELS; i++) {
+        encoders[i].ResetCounts();
+        drivetrain[i].SetPercent(40);
+        Sleep(400);
+        stop();
+        LCD.Clear();
+        LCD.WriteLine(encoders[i].Counts());
+    }
+    
+}
+
+
 int main(void)
 {
-   
+
+    // celebrationDance();
+    
+    //testSensors();
 
     initializeBot();
     
@@ -791,7 +991,7 @@ int main(void)
 
     setRPSVals();
     challenge();
-
+    // celebrationDance();
 
     /*
         Performance Test 1
@@ -935,3 +1135,4 @@ int main(void)
    
    
 }   
+

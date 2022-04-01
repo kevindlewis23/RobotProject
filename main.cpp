@@ -972,8 +972,8 @@ int main(void)
 
     // celebrationDance();
     
-    //testSensors();
-
+    // testSensors();
+    
     initializeBot();
     
     setLocations(); 
@@ -985,7 +985,7 @@ int main(void)
     while(!LCD.Touch(&x, &y));
     while(LCD.Touch(&x, &y));
     LCD.Clear();
-    while (getColor() != RED_LIGHT) {
+    for (int i = 0; i < 30000 && getColor() != RED_LIGHT; i+= 5) {
         Sleep(5);
     }
 

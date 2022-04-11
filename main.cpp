@@ -13,6 +13,7 @@
 #define DEFAULT_STOP_TIME 100
 #define DEFAULT_SPEED 0.4
 #define DEFAULT_TURN 0.2
+#define MIN_SPEED .12
 
 // Acceptable error
 #define DEFAULT_ERROR 0.4
@@ -25,14 +26,14 @@
 #define NUM_WHEELS 3
 
 // color thresholds for CdS cell
-#define RED_LOWER 0.9
-#define RED_UPPER 1.4
-#define BLUE_LOWER 1.55
-#define BLUE_UPPER 2.1
+#define RED_LOWER 0
+#define RED_UPPER 2.0
+#define BLUE_LOWER 2.0
+#define BLUE_UPPER 2.6
 
 // Servo constants
-#define SERVO_MIN 800
-#define SERVO_MAX 2400
+#define SERVO_MIN 700
+#define SERVO_MAX 2300
 
 // Movement update speed
 #define CLOCK .005
@@ -328,12 +329,14 @@ void goTo(double toX, double toY, double toHeading, double error = DEFAULT_ERROR
         cur = cur->next;
     }
     */ 
+    int numLastPosition = 0;
+    double actualLastX = 0, actualLastY = 0, actualLastHeading = 0;
     double errorStartTime = -1;
     while (true) {
         double startTime = TimeNow();
         
         // Check if RPS has updated in the last frame
-        if (RPS.X() != lastX || RPS.Y() != lastY || RPS.Heading() != lastHeading) {
+        // if (RPS.X() != lastX || RPS.Y() != lastY || RPS.Heading() != lastHeading) {
 
             // LCD.Clear();
             // LCD.Write("First if");
@@ -345,16 +348,28 @@ void goTo(double toX, double toY, double toHeading, double error = DEFAULT_ERROR
             // LCD.WriteLine(lastX);
             // If in deadzone or out of the area, break out of the loop
             if (lastX < 0)  {
+                numLastPosition = 0;
                 if (errorStartTime == -1)
                     errorStartTime = TimeNow();
                 else {
-                    if (TimeNow() - errorStartTime >= 0.4) {
+                    if (TimeNow() - errorStartTime >= 5) {
                         stop();
                         return;
                     }
                 }
                 
+            } else if (lastX == actualLastX && lastY == actualLastY && lastHeading == actualLastHeading) {
+                numLastPosition++;
+                if (numLastPosition > 2 / CLOCK) {
+                    driveDistance(0, 2);
+                    numLastPosition = 0;
+                }
             } else {
+
+                numLastPosition = 0;
+                actualLastX = lastX;
+                actualLastY = lastY;
+                actualLastHeading = lastHeading;
                 errorStartTime = -1;
                 // Update the current x and y by going through the deque
                 x = lastX;
@@ -369,7 +384,7 @@ void goTo(double toX, double toY, double toHeading, double error = DEFAULT_ERROR
                     cur = cur->next;
                 }*/
                 }
-            }
+           // }
         
         // LCD.Write("First if complete");
 
@@ -483,10 +498,9 @@ enum COLORS {
  COLORS getColor(){
      COLORS ret=NONE;
      double color = CDS.Value();
-     if(color >= RED_LOWER && color <= RED_UPPER) {
+     if(color <= RED_UPPER) {
          ret=RED_LIGHT;
-     }
-     else if(color<=BLUE_UPPER && color>=BLUE_LOWER){
+     } else if(color<=BLUE_UPPER){
          ret=BLUE_LIGHT;
      }
 
@@ -704,15 +718,25 @@ void playSong(int tones[][2], int length, int bpm) {
 void challenge() {
     // Step 1: Deposit tray ----------------------------------------------
     // Drive to the ramp
-    driveDistance(-50, 17);
-    turnDegrees(-25);
+    driveDistance(-48, 16.6, .5);
+    turnDegrees(-29, .3);
+    Sleep(DEFAULT_STOP_TIME);
+    
     
     // Drive up the ramp
-    driveDistance(0, 26, 0.6);
+    driveDistance(0, 26, 0.7);
 
     // Drive to the sink
-    driveDistance(-90,12, .6);
+    driveDistance(-90,11.6, .6);
     drive(180, 600);
+
+    // Make sure in the right place
+    // setRPSVals();
+    // if (pow(x - locations[3][0], 2) + pow(y - locations[3][1], 2) > 4 || fabs(theta - locations[3][2]) > 5) {
+    //     driveDistance(60, 2, .6);
+    //     driveDistance(0, 1, .6);
+    //     goTo(locations[3]);
+    // }
     
     // Deposit tray
     arm.SetDegree(50);
@@ -733,7 +757,7 @@ void challenge() {
             driveDistance(150, 7);
             break;
         case 1:
-            driveDistance(180, 5);
+            driveDistance(180, 5.5);
             break;
         case 2:
             driveDistance(-150, 7);
@@ -745,16 +769,16 @@ void challenge() {
     arm.SetDegree(180);
 
     // Drive away a bit
-    driveDistance(0, 6, .6);
+    driveDistance(0, 8, .8);
 
     // Step 3: Burger flip ---------------------------------------------------
     // Go to burger
-    arm.SetDegree(15);
-    goTo(locations[1], .2, 1);
+    arm.SetDegree(20);
+    goTo(locations[1], .1, 1);
 
     // Flip it
     arm.SetDegree(70);
-    Sleep(500);
+    drive(270, 600, .2, false);
     turn(true, 500);
     turn(false, 100);
 
@@ -765,7 +789,7 @@ void challenge() {
     drive(90, 350, 0.5, false);
 
     // Drive away
-    driveDistance(45, 5, .6);
+    driveDistance(0, 6, .8);
 
     // Step 4: Unflip ice cream ------------------------------------------------  
     // Go to the area  
@@ -816,10 +840,10 @@ void challenge() {
     driveDistance(-90, 6, .6);
     
     // Drive down the ramp
-    driveDistance(180, 20, .6);
+    driveDistance(180, 20, .8);
 
     // Drive towards the light
-    driveDistance(225, 6, .6);
+    driveDistance(225, 6, .8);
 
     // Go to the light
     goTo(locations[3], DEFAULT_ERROR, 1.0);
@@ -837,18 +861,18 @@ void challenge() {
     }else{
         // hit red
         LCD.WriteLine("Red");
-        driveDistance(250,5);
+        driveDistance(250,5, .5);
         drive(180, 400);
         turn(true, 100, false);
-        drive(180, 50, false);
+        drive(180, 200, DEFAULT_SPEED, false);
         
     }
     // Drive away a bit
-    driveDistance(45, 6, .6);
+    driveDistance(45, 6, .8);
 
     // Step 7: press final button ---------------------------
-    goTo(21., 16., 48., .5, 3., .4);
-    setVelocity(180, DEFAULT_SPEED);
+    goTo(21., 16., 48., .7, 3., .4);
+    setVelocity(180, 0.6);
     
 }
 
@@ -950,11 +974,13 @@ void testSensors () {
     arm.SetDegree(0);
     Sleep(500);
     
-    for (int i = 0; i < 200; i++) {
+    int curx, cury;
+    while (!LCD.Touch(&curx, &cury)) {
         LCD.Clear();
         LCD.WriteLine(CDS.Value());
         Sleep(10);
     }
+    while(LCD.Touch(&curx, &cury));
     for (int i = 0; i < NUM_WHEELS; i++) {
         encoders[i].ResetCounts();
         drivetrain[i].SetPercent(40);
@@ -969,7 +995,7 @@ void testSensors () {
 
 int main(void)
 {
-
+    
     // celebrationDance();
     
     // testSensors();
